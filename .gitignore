@@ -1,0 +1,8 @@
+*.o
+as2
+.DS_Store
+*.pdf
+*.h.gch
+eigen/*
+lodepng.*
+*.dSYM/
