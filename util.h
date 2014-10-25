@@ -39,7 +39,12 @@ enum LightSourceType { DIRECTIONAL, POINT, AMBIENT, UNSPECIFIED };
 
 enum TransformationType { ROTATION_ONLY, TRANSLATION_ONLY, SCALE_ONLY, COMBINATION };
 
-unsigned int randint(unsigned int lower, unsigned int upper)
+double randomDouble()
+{
+    return ((double)rand()) / RAND_MAX;
+}
+
+unsigned int randomInt(unsigned int lower, unsigned int upper)
 {
     if (upper > lower)
         return (rand() % (upper - lower)) + lower;

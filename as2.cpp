@@ -21,6 +21,7 @@ using namespace std;
 #define IMAGE_WIDTH 400
 #define IMAGE_HEIGHT 400
 #define MAX_REFLECTION_DEPTH 3
+#define ANTI_ALIASING_SAMPLES 0
 
 // Assumes that the shadow ray to the given light is not occluded.
 Color computeDiffuseComponent(const Color& diffuseColor, Vector3f intersection, const Ray& normal, Light* light)
@@ -133,15 +134,30 @@ int main(int argc, char* argv[])
     unsigned width = IMAGE_WIDTH, height = IMAGE_HEIGHT;
     std::vector<unsigned char> image;
     image.resize(4 * width * height);
+    double antiAliasingWidthMargin = 0.4 / width;
+    double antiAliasingHeightMargin = 0.4 / height;
     double u, v;
     for (int j = 0; j < height; j++) {
         v = (j + 0.5) / (double) height;
         for (int i = 0; i < width; i++) {
             u = (i + 0.5) / (double) width;
+
             Vector3f cameraPlanePosition = camera.viewPlanePositionFrom2D(u, v);
-            // cout << vector3fAsString(cameraPlanePosition) << endl;
-            Ray viewRay(camera.eye, cameraPlanePosition - camera.eye);
-            setImagePixelFromColor(image, i, j, width, height, colorFromRay(viewRay, lights, objects));
+            Ray viewRay = Ray(camera.eye, cameraPlanePosition - camera.eye);
+            Color pixelColor = colorFromRay(viewRay, lights, objects);
+            float totalRed = pixelColor.red;
+            float totalGreen = pixelColor.green;
+            float totalBlue = pixelColor.blue;
+            for (int k = 0; k < ANTI_ALIASING_SAMPLES; k++) {
+                cameraPlanePosition = camera.viewPlanePositionFrom2D(u + randomDouble() * antiAliasingWidthMargin, v + randomDouble() * antiAliasingHeightMargin);
+                viewRay = Ray(camera.eye, cameraPlanePosition - camera.eye);
+                pixelColor = colorFromRay(viewRay, lights, objects);
+                totalRed += pixelColor.red;
+                totalGreen += pixelColor.green;
+                totalBlue += pixelColor.blue;
+            }
+            Color finalColor(totalRed / (1 + ANTI_ALIASING_SAMPLES), totalGreen / (1 + ANTI_ALIASING_SAMPLES), totalBlue / (1 + ANTI_ALIASING_SAMPLES));
+            setImagePixelFromColor(image, i, j, width, height, finalColor);
         }
     }
     if (lodepng::encode("out.png", image, width, height))
