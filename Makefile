@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -g -Wall -std=c++11
+CFLAGS = -g -Wall -O2 -std=c++11
 TARGET = as2
 
 all: $(TARGET)
