@@ -58,6 +58,23 @@ void resetTransformToIdentity(Transform<float, 3, Affine>& transform)
     }
 }
 
+string sceneFileNameFromArgs(int argc, char* argv[], bool includeFormat = true)
+{
+    string inputFileName;
+    bool isFinalInput = false;
+    for (int i = 0; i < argc; i++) {
+        isFinalInput = string(argv[i]).find("input-") != -1;
+        if (string(argv[i]).find(".scene") != -1 || isFinalInput) {
+            inputFileName = argv[i];
+            break;
+        }
+    }
+    if (!includeFormat && !isFinalInput)
+        inputFileName = inputFileName.substr(0, inputFileName.size() - 6);
+
+    return inputFileName;
+}
+
 void loadImageToVector(vector<unsigned char>& image, const char* fileName, unsigned width, unsigned height)
 {
     if (lodepng::decode(image, width, height, fileName)) {

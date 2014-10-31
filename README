@@ -1,0 +1,48 @@
+CS184 Assignment 2: Raytracer
+Wenson Hsieh
+Developed and tested on OSX.
+Compatibility tested with Unix on hive servers.
+
+I. Source files
+    - util.h: Contains data structures/helper functions used in other files.
+    - parsing.h: Contains functions to parse .scene and .obj files.
+    - trace.cpp: Contains functions to create and map view rays to colors. Also contains the main entry point to the program.
+
+II. Features at a glance
+    A. Basic functionality
+        - Sphere and ellipsoid rendering
+        - Triangle rendering, specified through .scene or .obj
+        - Linear normal interpolation for triangles with vertex normals specified through .obj files
+        - Phong shading model
+        - Occlusion, shadows, and arbitrary-depth reflections
+        - Linear transformations (translation, scaling, rotation)
+        - Point and directional lights
+        - Output in .png format
+    B. Extra features
+        - Anti-aliasing with arbitrary sample size
+        - Skybox (world) texturing
+        - Accelerated intersection tests using global AABB tree
+
+III. Instructions
+    - To build, just invoke "make" at the top level of the project (same level as the main source files).
+    - To run on a scene, invoke "./trace <scene_name>.scene" to generate a corresponding <scene_name>.png at the same level.
+        - "./trace" only accepts a single string argument, which must have a ".scene" suffix.
+    - I made some additions and adjustments to the standard scene file format.
+        1. "aa <x>" sets the anti-aliasing level to x
+        2. "dim <w> <h>" sets the width and height of the generated image to w and h, respectively
+        3. "rd <d>" sets the maximum reflection depth to d
+        4. "obj <objfile> [-f]" has been tweaked to include an optional "-f" argument that flips vertex order
+        5. "bg <texture_suffix> <xmin> <xmax> <ymin> <ymax> <zmin> <zmax> <width> <height>" is used to specify the skybox
+            - The <texture_suffix> is a bit tricky. There should be 6 faces corresponding to the sides of the skybox, with each face 1...6 with the ith face corresponding to the file "<texture_suffix>i.png". The faces are numbered as such:
+                    1 : FRONT
+                    2 : RIGHT
+                    3 : BACK
+                    4 : LEFT
+                    5 : UP
+                    6 : DOWN
+                Alternately, think of the skybox numbering as an "unrolled cube" texture:
+                    |  5    |
+                    |4 1 2 3|
+                    |  6    |
+            - The min/max x, y and z values specify the axis-aligned bounding box for the skybox. This bounding box should enclose all objects in the scene.
+            - The <width> and <height> indicate the width and height of each face's image. All 6 images must have the same dimensions.

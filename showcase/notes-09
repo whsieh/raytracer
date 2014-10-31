@@ -1,0 +1,18 @@
+1. Run from root project directory:
+    "./trace showcase/input-02"
+
+2. Time (measured on OSX with 16GB RAM, 3 GHz Intel Core i7)
+    13 seconds
+
+3. Features demonstrated
+    Reflection
+    Triangle rendering
+    Mesh from .obj
+    Vertex normal interpolation
+    Rotation
+    Directional light
+    Anti-aliasing
+    Skybox
+    AABB acceleration
+
+"Curse your sudden but inevitable betrayal!"

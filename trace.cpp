@@ -142,9 +142,7 @@ int main(int argc, char* argv[])
     SkyBox environment;
     parseSceneFile(argc, argv, camera, lights, objects, environment, IMAGE_WIDTH, IMAGE_HEIGHT, ANTI_ALIASING_SAMPLES, MAX_REFLECTION_DEPTH);
     AABBNode* aabb = makeAABBNode(objects);
-
     cout << "Preparing to render scene. (" << objects.size() << " objects)" << endl;
-
     unsigned width = IMAGE_WIDTH, height = IMAGE_HEIGHT;
     std::vector<unsigned char> image;
     image.resize(4 * width * height);
@@ -177,7 +175,8 @@ int main(int argc, char* argv[])
 
     cout << "Rendering finished. Time: " << setprecision(3) << (time(NULL) - startTime) << " seconds." << endl;
 
-    if (lodepng::encode("out.png", image, width, height))
+    string label = sceneFileNameFromArgs(argc, argv, false);
+    if (lodepng::encode(string(label + ".png").c_str(), image, width, height))
         cout << "Error: Failed to save image." << endl;
 
     // Tear down and deallocate data structures.

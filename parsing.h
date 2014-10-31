@@ -126,11 +126,7 @@ bool parseObjFile(string objFileName, vector<Object*>& objects, const Transform<
 
 bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& lights, vector<Object*>& objects, SkyBox& environment, int& width, int& height, int& antiAliasing, int& reflectionDepth)
 {
-    string inputFileName;
-    for (int i = 0; i < argc; i++)
-        if (string(argv[i]).find(".scene") != -1)
-            inputFileName = argv[i];
-
+    string inputFileName = sceneFileNameFromArgs(argc, argv);
     if (!inputFileName.size())
         return false;
 
