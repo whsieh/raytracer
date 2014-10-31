@@ -1,11 +1,12 @@
 1. Run from root project directory:
-    "./trace showcase/input-02"
+    "./trace scenes/input-07"
 
 2. Time (measured on OSX with 16GB RAM, 3 GHz Intel Core i7)
-    8 seconds
+    10 seconds
 
 3. Features demonstrated
     Reflection
+    Sphere rendering
     Triangle rendering
     Mesh from .obj
     Vertex normal interpolation
@@ -14,4 +15,4 @@
     Skybox
     AABB acceleration
 
-Massive (~15 MB) .obj file with 200,000 faces. This is where my AABB really saves the day. The non-anti-aliased version takes less than 4 seconds to generate the image.
+My first test for interpolated normals. Observe that the teapot appears smooth (well, smoother than the goard and bunny).

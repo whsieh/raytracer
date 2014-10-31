@@ -1,18 +1,19 @@
 1. Run from root project directory:
-    "./trace showcase/input-02"
+    "./trace scenes/input-06"
 
 2. Time (measured on OSX with 16GB RAM, 3 GHz Intel Core i7)
-    10 seconds
+    12 seconds
 
 3. Features demonstrated
     Reflection
     Sphere rendering
     Triangle rendering
     Mesh from .obj
-    Vertex normal interpolation
+    Translation
+    Shadows
     Directional light
     Anti-aliasing
     Skybox
     AABB acceleration
 
-My first test for interpolated normals. Observe that the teapot appears smooth (well, smoother than the goard and bunny).
+An early test for shadowing and reflection with a triangular mesh object, sphere, and skybox all in one.

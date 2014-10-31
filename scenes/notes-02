@@ -1,5 +1,5 @@
 1. Run from root project directory:
-    "./trace showcase/input-02"
+    "./trace scenes/input-02"
 
 2. Time (measured on OSX with 16GB RAM, 3 GHz Intel Core i7)
     37 seconds

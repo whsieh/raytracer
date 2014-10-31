@@ -1,17 +1,18 @@
 1. Run from root project directory:
-    "./trace showcase/input-02"
+    "./trace scenes/input-09"
 
 2. Time (measured on OSX with 16GB RAM, 3 GHz Intel Core i7)
-    3 seconds
+    13 seconds
 
 3. Features demonstrated
     Reflection
-    Sphere rendering
     Triangle rendering
     Mesh from .obj
+    Vertex normal interpolation
+    Rotation
     Directional light
     Anti-aliasing
     Skybox
     AABB acceleration
 
-Classic goard .obj with reflective spheres in the background. Makes about as much sense as the space bunny, but I think it looks cool.
+"Curse your sudden but inevitable betrayal!"

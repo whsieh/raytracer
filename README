@@ -3,10 +3,14 @@ Wenson Hsieh
 Developed and tested on OSX.
 Compatibility tested with Unix on hive servers.
 
-I. Source files
-    - util.h: Contains data structures/helper functions used in other files.
-    - parsing.h: Contains functions to parse .scene and .obj files.
-    - trace.cpp: Contains functions to create and map view rays to colors. Also contains the main entry point to the program.
+I. The project directory
+    - util.h      Contains data structures/helper functions used in other files.
+    - parsing.h   Contains functions to parse .scene and .obj files.
+    - trace.cpp   Contains functions to create and map view rays to colors. Also contains the main entry point to the program.
+    - Makefile    Used to compile the code.
+    - objects/    Contains some .obj files used to render scenes.
+    - showcase/   Contains the final input-nn, image-nn.png and notes-nn files.
+    - textures/   Contains the textures for 3 skyboxes: sky, space and desert.
 
 II. Features at a glance
     A. Basic functionality
