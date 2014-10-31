@@ -20,7 +20,7 @@ using Eigen::Translation;
 using Eigen::AngleAxisf;
 using namespace std;
 
-bool parseObjFile(string objFileName, vector<Object*>& objects, const Transform<float, 3, Affine>& currentTransform, const Material& currentMaterial)
+bool parseObjFile(string objFileName, vector<Object*>& objects, const Transform<float, 3, Affine>& currentTransform, const Material& currentMaterial, bool flipNormals = false)
 {
     ifstream objFile;
     objFile.open(objFileName + string(".obj"), ios::binary | ios::in);
@@ -29,6 +29,7 @@ bool parseObjFile(string objFileName, vector<Object*>& objects, const Transform<
         return false;
     }
     vector<Vector3f> vertices;
+    vector<Vector3f> normals;
     int lineNo = 0;
     string currentLine;
     while (!objFile.eof()) {
@@ -56,19 +57,34 @@ bool parseObjFile(string objFileName, vector<Object*>& objects, const Transform<
             }
             vertices.push_back(Vector3f(x, y, z));
 
+        } else if (identifier == "vn") {
+            float x, y, z;
+            if (tokens.size() < 3) {
+                printf("Warning: not enough parameters for vertex normal on line %d of %s.obj.\n", lineNo, objFileName.c_str());
+                continue;
+            }
+            if (!parseFloat(tokens[0], x) || !parseFloat(tokens[1], y) || !parseFloat(tokens[2], z)) {
+                printf("Warning: could not parse vertex normal on line %d of %s.obj.\n", lineNo, objFileName.c_str());
+                continue;
+            }
+            normals.push_back(Vector3f(x, y, z));
+
         } else if (identifier == "f") {
-            int v1, v2, v3;
+            int v1, v2, v3, vn1 = 0, vn2 = 0, vn3 = 0;
             if (tokens.size() < 3) {
                 printf("Warning: not enough parameters for face on line %d of %s.obj.\n", lineNo, objFileName.c_str());
                 continue;
             }
-            if (!parseInt(tokens[0], v1) || !parseInt(tokens[1], v2) || !parseInt(tokens[2], v3)) {
+            if (!parseIntPair(tokens[0], v1, vn1) || !parseIntPair(tokens[1], v2, vn2) || !parseIntPair(tokens[2], v3, vn3)) {
                 printf("Warning: could not parse face on line %d of %s.obj.\n", lineNo, objFileName.c_str());
                 continue;
             }
             v1--;
             v2--;
             v3--;
+            vn1 = vn1 ? (vn1 - 1) : v1;
+            vn2 = vn2 ? (vn2 - 1) : v2;
+            vn3 = vn3 ? (vn3 - 1) : v3;
             if (v1 >= vertices.size() || v1 < 0) {
                 printf("Warning: invalid vertex %d on line %d of %s.obj.\n", v1, lineNo, objFileName.c_str());
                 continue;
@@ -81,16 +97,34 @@ bool parseObjFile(string objFileName, vector<Object*>& objects, const Transform<
                 printf("Warning: invalid vertex %d on line %d of %s.obj.\n", v3, lineNo, objFileName.c_str());
                 continue;
             }
-            Triangle* triangle = new Triangle(vertices[v1], vertices[v2], vertices[v3]);
-            triangle->transform = currentTransform;
-            triangle->material = currentMaterial;
+            if (normals.size() && (vn1 >= normals.size() || vn1 < 0)) {
+                printf("Warning: invalid normal %d on line %d of %s.obj.\n", vn1, lineNo, objFileName.c_str());
+                continue;
+            }
+            if (normals.size() && (vn2 >= normals.size() || vn2 < 0)) {
+                printf("Warning: invalid normal %d on line %d of %s.obj.\n", vn2, lineNo, objFileName.c_str());
+                continue;
+            }
+            if (normals.size() && (vn3 >= normals.size() || vn3 < 0)) {
+                printf("Warning: invalid normal %d on line %d of %s.obj.\n", vn3, lineNo, objFileName.c_str());
+                continue;
+            }
+            Triangle* triangle;
+            if (normals.size() == 0)
+                triangle = flipNormals ? new Triangle(vertices[v3], vertices[v2], vertices[v1]) : new Triangle(vertices[v1], vertices[v2], vertices[v3]);
+            else
+                triangle = flipNormals ? new Triangle(vertices[v3], vertices[v2], vertices[v1], normals[vn3], normals[vn2], normals[vn1])
+                    : new Triangle(vertices[v1], vertices[v2], vertices[v3], normals[vn1], normals[vn2], normals[vn3]);
+
+            triangle->setTransform(currentTransform);
+            triangle->setMaterial(currentMaterial);
             objects.push_back(triangle);
         }
     }
     return true;
 }
 
-bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& lights, vector<Object*>& objects)
+bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& lights, vector<Object*>& objects, SkyBox& environment, int& width, int& height, int& antiAliasing, int& reflectionDepth)
 {
     string inputFileName;
     for (int i = 0; i < argc; i++)
@@ -120,14 +154,38 @@ bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& ligh
         if (!currentLine.size())
             continue;
 
-        if (currentLine[0] == '/' && currentLine[1] == '/')
+        if (currentLine[0] == '#')
             continue;
 
         vector<string> tokens = split(currentLine);
         string identifier = tokens[0];
         tokens.erase(tokens.begin());
+        if (identifier == "dim") { // Image dimensions.
+            int w, h;
+            if (!parseInt(tokens[0], w) || !parseInt(tokens[1], h)) {
+                printf("Warning: failed to parse image dimensions on line %d.\n", lineNo);
+                continue;
+            }
+            width = w;
+            height = h;
 
-        if (identifier == "cam") {
+        } else if (identifier == "aa") { // Anti-aliasing.
+            int a;
+            if (!parseInt(tokens[0], a)) {
+                printf("Warning: failed to parse anti-aliasing sample count on line %d.\n", lineNo);
+                continue;
+            }
+            antiAliasing = a;
+
+        } else if (identifier == "rd") { // Maximum reflection depth.
+            int d;
+            if (!parseInt(tokens[0], d)) {
+                printf("Warning: failed to parse max reflection depth on line %d.\n", lineNo);
+                continue;
+            }
+            reflectionDepth = d;
+
+        } else if (identifier == "cam") {
             if (tokens.size() != 15) {
                 printf("Warning: camera on line %d is missing parameters.\n", lineNo);
                 continue;
@@ -182,8 +240,8 @@ bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& ligh
             }
             Vector3f vertexC(x, y, z);
             Triangle* triangle = new Triangle(vertexA, vertexB, vertexC);
-            triangle->transform = currentTransform;
-            triangle->material = currentMaterial;
+            triangle->setTransform(currentTransform);
+            triangle->setMaterial(currentMaterial);
             objects.push_back(triangle);
 
         } else if (identifier == "sph") {
@@ -197,8 +255,8 @@ bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& ligh
                 continue;
             }
             Sphere* sphere = new Sphere(Vector3f(x, y, z), r);
-            sphere->transform = currentTransform;
-            sphere->material = currentMaterial;
+            sphere->setTransform(currentTransform);
+            sphere->setMaterial(currentMaterial);
             objects.push_back(sphere);
 
         } else if (identifier == "ltp") {
@@ -310,6 +368,23 @@ bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& ligh
                 isTransformSet = true;
             }
 
+        } else if (identifier == "xfr") {
+            if (tokens.size() < 3) {
+                printf("Warning: rotation transformation on line %d is missing parameters.\n", lineNo);
+                continue;
+            }
+            float x, y, z;
+            if (!parseFloat(tokens[0], x) || !parseFloat(tokens[1], y) || !parseFloat(tokens[2], z)) {
+                printf("Warning: could not parse rotation transformation on line %d.\n", lineNo);
+                continue;
+            }
+            if (isTransformSet)
+                currentTransform = currentTransform * rotationTransformFromAxisAngle(x, y, z);
+            else {
+                currentTransform = rotationTransformFromAxisAngle(x, y, z);
+                isTransformSet = true;
+            }
+
         } else if (identifier == "xfz") {
             resetTransformToIdentity(currentTransform);
             isTransformSet = false;
@@ -319,11 +394,38 @@ bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& ligh
                 printf("Warning: obj specified without file name on line %d.\n", lineNo);
                 continue;
             }
-            if (!parseObjFile(tokens[0], objects, currentTransform, currentMaterial))
+            if (!parseObjFile(tokens[0], objects, currentTransform, currentMaterial, tokens.size() >= 2 && tokens[2] == "-f"))
                 printf("Warning: error occurred while parsing \"%s.obj\" on line %d.\n", tokens[0].c_str() , lineNo);
+
+        } else if (identifier == "bg") {
+            if (tokens.size() < 3) {
+                printf("Warning: background on line %d is missing parameters.\n", lineNo);
+                continue;
+            }
+            if (tokens.size() == 3) {
+                float red, green, blue;
+                if (!parseFloat(tokens[0], red) || !parseFloat(tokens[1], green) || !parseFloat(tokens[2], blue)) {
+                    printf("Warning: failed to parse background color on line %d.\n", lineNo);
+                    continue;
+                }
+                environment = SkyBox(Color(red, green, blue));
+
+            } else {
+                float minX, maxX, minY, maxY, minZ, maxZ;
+                if (!parseFloat(tokens[1], minX) || !parseFloat(tokens[2], maxX) || !parseFloat(tokens[3], minY)
+                    || !parseFloat(tokens[4], maxY) || !parseFloat(tokens[5], minZ) || !parseFloat(tokens[6], maxZ)) {
+                    printf("Warning: failed to parse min/max for axes on line %d.\n", lineNo);
+                    continue;
+                }
+                int bgWidth, bgHeight;
+                if (!parseInt(tokens[7], bgWidth) || !parseInt(tokens[8], bgHeight)) {
+                    printf("Warning: failed to parse image dimensions on line %d.\n", lineNo);
+                    continue;
+                }
+                environment = SkyBox(tokens[0], minX, maxX, minY, maxY, minZ, maxZ, bgWidth, bgHeight);
+            }
         }
     }
-
     sceneFile.close();
     return true;
 }

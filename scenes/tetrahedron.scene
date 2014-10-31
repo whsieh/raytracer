@@ -2,18 +2,18 @@
 cam 0 0 100 -100 -100 0 100 -100 0 -100 100 0 100 100 0
 ltp 0 0 0 1 1 1
 
-// Upper right triangle.
+# Upper right triangle.
 mat 0.2 0.1 0.1 0.9 0.1 0.1 1 1 1 16 0 0 0
 tri 0 0 -50 86.6 -50 -150 0 100 -150
 
-// Upper left triangle.
+# Upper left triangle.
 mat 0.1 0.2 0.1 0.1 0.9 0.1 1 1 1 16 0 0 0
 tri 0 0 -50 0 100 -150 -86.6 -50 -150
 
-// Lower triangle.
+# Lower triangle.
 mat 0.1 0.1 0.2 0.1 0.1 0.9 1 1 1 16 0 0 0
 tri 0 0 -50 -86.6 -50 -150 86.6 -50 -150
 
-// Back triangle.
+# Back triangle.
 mat 0.2 0.2 0.1 0.9 0.9 0.1 1 1 1 16 0 0 0
 tri 0 100 -150 -86.6 -50 -150 86.6 -50 -150

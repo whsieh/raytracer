@@ -1,17 +1,17 @@
 CC = g++
 CFLAGS = -g -Wall -O2 -std=c++11
-TARGET = as2
+TARGET = trace
 
 all: $(TARGET)
 
-default: as2
+default: trace
 
-as2: as2.cpp lodepng.o parsing.h util.h
-	$(CC) $(CFLAGS) -o as2 as2.cpp -I ./eigen
+trace: trace.cpp lodepng.o parsing.h util.h
+	$(CC) $(CFLAGS) -o trace trace.cpp -I ./lib/eigen
 
-lodepng.o: lodepng.cpp
-	$(CC) $(CFLAGS) -c lodepng.cpp
+lodepng.o: lib/lodepng.cpp
+	$(CC) $(CFLAGS) -c lib/lodepng.cpp
 
 clean:
-	rm -f *.o *.h.gch as2
+	rm -f *.o *.h.gch trace
 	rm -rf *.dSYM

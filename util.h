@@ -16,7 +16,7 @@
 #include <cfloat>
 #include <iomanip>
 
-#include "lodepng.cpp"
+#include "lib/lodepng.cpp"
 
 using Eigen::Affine;
 using Eigen::Vector3f;
@@ -27,16 +27,14 @@ using Eigen::Translation;
 using Eigen::AngleAxisf;
 using namespace std;
 
-// THIS IS HOW YOU DO THE ROTATON THING
-// Transform<float, 3, Affine> testTransform = Eigen::Transform<float, 3, Affine>(AngleAxisf(PI / 2, Vector3f(1, 0, 0)).toRotationMatrix());
-
 #define PI 3.14159265
 #define EPSILON 0.01
+#define MAX_AABB_DEPTH 20
+#define AABB_LEAF_SIZE 10
 
 static int GLOBAL_OBJECT_COUNT = 0;
 
 enum LightSourceType { DIRECTIONAL, POINT, AMBIENT, UNSPECIFIED };
-
 enum TransformationType { ROTATION_ONLY, TRANSLATION_ONLY, SCALE_ONLY, COMBINATION };
 
 double randomDouble()
@@ -57,6 +55,14 @@ void resetTransformToIdentity(Transform<float, 3, Affine>& transform)
         for (int j = 0; j < 4; j++) {
             transform.matrix()(i, j) = i == j ? 1 : 0;
         }
+    }
+}
+
+void loadImageToVector(vector<unsigned char>& image, const char* fileName, unsigned width, unsigned height)
+{
+    if (lodepng::decode(image, width, height, fileName)) {
+        cout << "Could not load image " << string(fileName) << endl;
+        exit(0);
     }
 }
 
@@ -98,6 +104,12 @@ bool parseInt(string str, int& value)
     }
 }
 
+Transform<float, 3, Affine> rotationTransformFromAxisAngle(float x, float y, float z)
+{
+    float rotationAmount = PI * sqrt(square(x) + square(y) + square(z)) / 180.0;
+    return Eigen::Transform<float, 3, Affine>(AngleAxisf(rotationAmount, Vector3f(x, y, z).normalized()).toRotationMatrix());
+}
+
 /** Boilerplate C++ string manipulation routines from the following sources:
  *      http://stackoverflow.com/questions/216823/whats-the-best-way-to-trim-stdstring
  *      http://stackoverflow.com/questions/236129/how-to-split-a-string-in-c
@@ -129,6 +141,16 @@ vector<string> split(const string& str, const string& delimiter = " ") {
     return tokens;
 }
 /** End code that I didn't write. */
+
+bool parseIntPair(string str, int& first, int& second, const string& delimiter = "//")
+{
+    vector<string> list = split(str, delimiter);
+    if (list.size() == 0)
+        return false;
+    else if (list.size() == 1)
+        return parseInt(list[0], first);
+    return parseInt(list[0], first) && parseInt(list[1], second);
+}
 
 string vector3fAsString(Vector3f vector)
 {
@@ -188,21 +210,29 @@ inline Color operator+(const Color& c1, const Color& c2)
     return Color(c1.red + c2.red, c1.green + c2.green, c1.blue + c2.blue);
 }
 
+Color colorFromImageVector(const vector<unsigned char>& image,  int width, int height, float u, float v)
+{
+    clamp<float>(u, 0, 1);
+    clamp<float>(v, 0, 1);
+    int x = min<int>(width - 1, u * width),
+        y = min<int>(height - 1, v * height);
+    int startIndex = 4 * (width * y + x);
+    return Color(image[startIndex] / 255.0,
+        image[startIndex + 1] / 255.0,
+        image[startIndex + 2] / 255.0);
+}
+
 class Ray {
 public:
-    Ray(Vector3f _start, Vector3f _direction, float _tMin = 0, float _tMax = FLT_MAX)
+    Ray(Vector3f _start, Vector3f _direction)
         : start(_start(0), _start(1), _start(2))
         , direction(_direction(0), _direction(1), _direction(2))
-        , tMax(_tMax)
-        , tMin(_tMin)
     {
     }
 
     Ray()
         : start(0, 0, 0)
         , direction(0, 0, 0)
-        , tMax(FLT_MAX)
-        , tMin(0)
     {
     }
 
@@ -223,7 +253,7 @@ public:
         return t / 3;
     }
 
-    Vector3f positionAtTime(float t)
+    Vector3f positionAtTime(float t) const
     {
         return start + (t * direction);
     }
@@ -242,8 +272,92 @@ public:
 
     Vector3f start;
     Vector3f direction;
-    float tMax;
-    float tMin;
+};
+
+class AABB {
+public:
+    AABB(float _xmin, float _xmax, float _ymin, float _ymax, float _zmin, float _zmax)
+        : xmin(_xmin)
+        , xmax(_xmax)
+        , ymin(_ymin)
+        , ymax(_ymax)
+        , zmin(_zmin)
+        , zmax(_zmax)
+    {
+    }
+
+    AABB()
+        : xmin(-FLT_MAX)
+        , xmax(FLT_MAX)
+        , ymin(-FLT_MAX)
+        , ymax(FLT_MAX)
+        , zmin(-FLT_MAX)
+        , zmax(FLT_MAX)
+    {
+    }
+
+    string toString() const
+    {
+        ostringstream out;
+        out << "AABB(x=[" << setprecision(3) << xmin << ", " << setprecision(3) << xmax << "], "
+            << "y=[" << setprecision(3) << ymin << ", " << setprecision(3) << ymax << "], "
+            << "z=[" << setprecision(3) << zmin << ", " << setprecision(3) << zmax << "])";
+        return out.str();
+    }
+
+    Vector3f midpoint() const
+    {
+        return Vector3f((xmin + xmax) / 2, (ymin + ymax) / 2, (zmin + zmax) / 2);
+    }
+
+    bool intersects(const Ray& ray) const
+    {
+        Vector3f intersection;
+        float tmin = (xmin - ray.start(0)) / ray.direction(0);
+        float tmax = (xmax - ray.start(0)) / ray.direction(0);
+        if (!isnan(tmin) && tmin > 0) {
+            intersection = ray.positionAtTime(tmin);
+            if (ymin <= intersection(1) && intersection(1) <= ymax && zmin <= intersection(2) && intersection(2) <= zmax)
+                return true;
+        }
+        if (!isnan(tmax) && tmax > 0) {
+            intersection = ray.positionAtTime(tmax);
+            if (ymin <= intersection(1) && intersection(1) <= ymax && zmin <= intersection(2) && intersection(2) <= zmax)
+                return true;
+        }
+        tmin = (ymin - ray.start(1)) / ray.direction(1);
+        tmax = (ymax - ray.start(1)) / ray.direction(1);
+        if (!isnan(tmin) && tmin > 0) {
+            intersection = ray.positionAtTime(tmin);
+            if (xmin <= intersection(0) && intersection(0) <= xmax && zmin <= intersection(2) && intersection(2) <= zmax)
+                return true;
+        }
+        if (!isnan(tmax) && tmax > 0) {
+            intersection = ray.positionAtTime(tmax);
+            if (xmin <= intersection(0) && intersection(0) <= xmax && zmin <= intersection(2) && intersection(2) <= zmax)
+                return true;
+        }
+        tmin = (zmin - ray.start(2)) / ray.direction(2);
+        tmax = (zmax - ray.start(2)) / ray.direction(2);
+        if (!isnan(tmin) && tmin > 0) {
+            intersection = ray.positionAtTime(tmin);
+            if (xmin <= intersection(0) && intersection(0) <= xmax && ymin <= intersection(1) && intersection(1) <= ymax)
+                return true;
+        }
+        if (!isnan(tmax) && tmax > 0) {
+            intersection = ray.positionAtTime(tmax);
+            if (xmin <= intersection(0) && intersection(0) <= xmax && ymin <= intersection(1) && intersection(1) <= ymax)
+                return true;
+        }
+        return false;
+    }
+
+    float xmin;
+    float xmax;
+    float ymin;
+    float ymax;
+    float zmin;
+    float zmax;
 };
 
 class Camera {
@@ -399,6 +513,7 @@ public:
     Object(int _id)
         : id(_id)
     {
+        resetTransformToIdentity(transform);
     }
 
     Ray rayInObjectSpace(const Ray& viewRay) const
@@ -410,9 +525,24 @@ public:
     }
 
     virtual string toString() const = 0;
-    virtual bool intersects(const Ray&) const = 0;
+    virtual bool intersects(const Ray&, float) const = 0;
     virtual bool intersects(const Ray&, Vector3f&, Ray&, Ray&) const = 0;
+    virtual void computeWorldAABB() = 0;
 
+    void setTransform(const Transform<float, 3, Affine>& _transform)
+    {
+        transform = _transform;
+        computeWorldAABB();
+        midpoint = worldAABB.midpoint();
+    }
+
+    void setMaterial(const Material& _material)
+    {
+        material = _material;
+    }
+
+    AABB worldAABB;
+    Vector3f midpoint;
     Transform<float, 3, Affine> transform;
     Material material;
     int id;
@@ -427,10 +557,55 @@ public:
     {
     }
 
-    bool intersects(const Ray& originalViewRay) const
+    void computeWorldAABB()
+    {
+        Vector3f corners[8];
+        // Compute the corners of the bounding box in object space and transform them into world space.
+        corners[0] = transform * (center + Vector3f(-radius, -radius, -radius));
+        corners[1] = transform * (center + Vector3f(-radius, -radius, radius));
+        corners[2] = transform * (center + Vector3f(-radius, radius, -radius));
+        corners[3] = transform * (center + Vector3f(-radius, radius, radius));
+        corners[4] = transform * (center + Vector3f(radius, -radius, -radius));
+        corners[5] = transform * (center + Vector3f(radius, -radius, radius));
+        corners[6] = transform * (center + Vector3f(radius, radius, -radius));
+        corners[7] = transform * (center + Vector3f(radius, radius, radius));
+        // Compute a new bounding box around the transformed corners.
+        float xmin = FLT_MAX, xmax = -FLT_MAX, ymin = FLT_MAX, ymax = -FLT_MAX, zmin = FLT_MAX, zmax = -FLT_MAX;
+        for (int i = 0; i < 8; i++) {
+            float x = corners[i](0),
+                y = corners[i](1),
+                z = corners[i](2);
+            if (x < xmin)
+                xmin = x;
+            if (x > xmax)
+                xmax = x;
+            if (y < ymin)
+                ymin = y;
+            if (y > ymax)
+                ymax = y;
+            if (z < zmin)
+                zmin = z;
+            if (z > zmax)
+                zmax = z;
+        }
+        if (xmin == FLT_MAX)
+            xmin = xmax - 0.001;
+        if (xmax == -FLT_MAX)
+            xmax = xmin + 0.001;
+        if (ymin == FLT_MAX)
+            ymin = ymax - 0.001;
+        if (ymax == -FLT_MAX)
+            ymax = ymin + 0.001;
+        if (zmin == FLT_MAX)
+            zmin = zmax - 0.001;
+        if (zmax == -FLT_MAX)
+            zmax = zmin + 0.001;
+        worldAABB = AABB(xmin, xmax, ymin, ymax, zmin, zmax);
+    }
+
+    bool intersects(const Ray& originalViewRay, float maxTime = FLT_MAX) const
     {
         Ray viewRayInObjectSpace = rayInObjectSpace(originalViewRay);
-        // cout << "The view ray in object coordinates is " << viewRayInObjectSpace.toString() << endl;
         float A = square(viewRayInObjectSpace.direction(0)) + square(viewRayInObjectSpace.direction(1)) + square(viewRayInObjectSpace.direction(2));
         float B = 2 * ((viewRayInObjectSpace.direction(0) * (viewRayInObjectSpace.start(0) - center(0))) +
                     (viewRayInObjectSpace.direction(1) * (viewRayInObjectSpace.start(1) - center(1))) +
@@ -438,7 +613,6 @@ public:
         float C = square(viewRayInObjectSpace.start(0) - center(0)) +
             square(viewRayInObjectSpace.start(1) - center(1)) +
             square(viewRayInObjectSpace.start(2) - center(2)) - square(radius);
-        // cout << "A: " << A << " B: " << B << "C: " << C << endl;
         float discriminant = square(B) - (4 * A * C);
         float t1 = -1, t2 = -1;
         if (discriminant >= 0) {
@@ -446,7 +620,10 @@ public:
             t1 = (-B - rootTerm) / (2 * A);
             t2 = (-B + rootTerm) / (2 * A);
         }
-        return discriminant >= 0 && (t1 > EPSILON || t2 > EPSILON);
+        if (discriminant < 0 || (t1 <= EPSILON && t2 <= EPSILON))
+            return false;
+
+        return (t1 > EPSILON ? t1 : t2) < maxTime;
     }
 
     // Arguments intersection, normal and bounce are set in terms of world coordinates.
@@ -489,7 +666,7 @@ public:
     string toString() const
     {
         ostringstream out;
-        out << "Circle(center=[" << setprecision(3) << center(0) << ", " << setprecision(3) << center(1) << ", "
+        out << "Sphere(center=[" << setprecision(3) << center(0) << ", " << setprecision(3) << center(1) << ", "
             << setprecision(3) << center(2) << "], radius=" << setprecision(3) << radius << ")";
         return out.str();
     }
@@ -500,13 +677,15 @@ public:
 
 class Triangle : public Object {
 public:
-    Triangle(Vector3f _a, Vector3f _b, Vector3f _c)
+    Triangle(Vector3f _a, Vector3f _b, Vector3f _c, Vector3f _normalA, Vector3f _normalB, Vector3f _normalC)
         : Object(GLOBAL_OBJECT_COUNT++)
         , a(_a)
         , b(_b)
         , c(_c)
+        , normalA(_normalA)
+        , normalB(_normalB)
+        , normalC(_normalC)
     {
-        triangleNormal = (b - a).cross(c - a).normalized();
         cachedIntersectionMatrix(0, 0) = b(0) - a(0);
         cachedIntersectionMatrix(1, 0) = b(1) - a(1);
         cachedIntersectionMatrix(2, 0) = b(2) - a(2);
@@ -515,7 +694,53 @@ public:
         cachedIntersectionMatrix(2, 1) = c(2) - a(2);
     }
 
-    bool intersects(const Ray& originalViewRay) const
+    Triangle(Vector3f _a, Vector3f _b, Vector3f _c)
+        : Triangle(_a, _b, _c, (_b - _a).cross(_c - _a).normalized(), (_b - _a).cross(_c - _a).normalized(), (_b - _a).cross(_c - _a).normalized())
+    {
+    }
+
+    void computeWorldAABB()
+    {
+        // Compute the three corners of the triangle in world coordinates.
+        Vector3f corners[3];
+        corners[0] = transform * a;
+        corners[1] = transform * b;
+        corners[2] = transform * c;
+        // Compute a new bounding box around the transformed corners.
+        float xmin = FLT_MAX, xmax = -FLT_MAX, ymin = FLT_MAX, ymax = -FLT_MAX, zmin = FLT_MAX, zmax = -FLT_MAX;
+        for (int i = 0; i < 3; i++) {
+            float x = corners[i](0),
+                y = corners[i](1),
+                z = corners[i](2);
+            if (x < xmin)
+                xmin = x;
+            if (x > xmax)
+                xmax = x;
+            if (y < ymin)
+                ymin = y;
+            if (y > ymax)
+                ymax = y;
+            if (z < zmin)
+                zmin = z;
+            if (z > zmax)
+                zmax = z;
+        }
+        if (xmin == FLT_MAX)
+            xmin = xmax - 0.025;
+        if (xmax == -FLT_MAX)
+            xmax = xmin + 0.025;
+        if (ymin == FLT_MAX)
+            ymin = ymax - 0.025;
+        if (ymax == -FLT_MAX)
+            ymax = ymin + 0.025;
+        if (zmin == FLT_MAX)
+            zmin = zmax - 0.025;
+        if (zmax == -FLT_MAX)
+            zmax = zmin + 0.025;
+        worldAABB = AABB(xmin, xmax, ymin, ymax, zmin, zmax);
+    }
+
+    bool intersects(const Ray& originalViewRay, float maxTime = FLT_MAX) const
     {
         Ray viewRayInObjectSpace = rayInObjectSpace(originalViewRay);
         Matrix3f intersectionMatrix = cachedIntersectionMatrix;
@@ -524,7 +749,14 @@ public:
         intersectionMatrix(2, 2) = -viewRayInObjectSpace.direction(2);
         Vector3f intersectionVector(viewRayInObjectSpace.start(0) - a(0), viewRayInObjectSpace.start(1) - a(1), viewRayInObjectSpace.start(2) - a(2));
         Vector3f solution = intersectionMatrix.inverse() * intersectionVector;
-        return solution(2) > EPSILON && solution(0) > 0 && solution(1) > 0 && (solution(0) + solution(1)) < 1;
+        float beta = solution(0), gamma = solution(1), t = solution(2);
+        return t > EPSILON && t < maxTime && beta > 0 && gamma > 0 && (beta + gamma) < 1;
+    }
+
+    // Returns the normal at a given intersection point given by beta and gamma.
+    Vector3f interpolatedNormal(float beta, float gamma) const
+    {
+        return (normalA + (beta * (normalB - normalA)) + (gamma * (normalC - normalA))).normalized();
     }
 
     // Arguments intersection, normal and bounce are set in terms of world coordinates.
@@ -543,10 +775,11 @@ public:
 
         Vector3f intersectionInObjectSpace = viewRayInObjectSpace.positionAtTime(t);
         Vector3f incomingIncidenceVector = viewRayInObjectSpace.direction.normalized();
-        Vector3f outgoingReflectionVector = (-2 * incomingIncidenceVector.dot(triangleNormal)) * triangleNormal + incomingIncidenceVector;
+        Vector3f intersectionNormal = interpolatedNormal(beta, gamma);
+        Vector3f outgoingReflectionVector = (-2 * incomingIncidenceVector.dot(intersectionNormal)) * intersectionNormal + incomingIncidenceVector;
         intersection = transform * intersectionInObjectSpace;
         Vector3f bounceOffset = transform * (intersectionInObjectSpace + outgoingReflectionVector);
-        Vector3f normalOffset = transform * (intersectionInObjectSpace + triangleNormal);
+        Vector3f normalOffset = transform * (intersectionInObjectSpace + intersectionNormal);
         bounce.start = intersection;
         bounce.direction = bounceOffset - intersection;
         normal.start = intersection;
@@ -566,8 +799,284 @@ public:
     Vector3f a;
     Vector3f b;
     Vector3f c;
-    Vector3f triangleNormal;
+    Vector3f normalA;
+    Vector3f normalB;
+    Vector3f normalC;
     Matrix3f cachedIntersectionMatrix;
+};
+
+
+AABB computeAABBFromObjects(const vector<Object*>& objects)
+{
+    float xmin = FLT_MAX, xmax = -FLT_MAX, ymin = FLT_MAX, ymax = -FLT_MAX, zmin = FLT_MAX, zmax = -FLT_MAX;
+    for (Object* object : objects) {
+        if (object->worldAABB.xmin < xmin)
+            xmin = object->worldAABB.xmin;
+        if (object->worldAABB.xmax > xmax)
+            xmax = object->worldAABB.xmax;
+        if (object->worldAABB.ymin < ymin)
+            ymin = object->worldAABB.ymin;
+        if (object->worldAABB.ymax > ymax)
+            ymax = object->worldAABB.ymax;
+        if (object->worldAABB.zmin < zmin)
+            zmin = object->worldAABB.zmin;
+        if (object->worldAABB.zmax > zmax)
+            zmax = object->worldAABB.zmax;
+    }
+    return AABB(xmin, xmax, ymin, ymax, zmin, zmax);
+}
+
+class AABBNode {
+public:
+    AABBNode(const vector<Object*> _objects, int _depth)
+        : objects(_objects)
+        , depth(_depth)
+        , pos(NULL)
+        , neg(NULL)
+    {
+        box = computeAABBFromObjects(objects);
+    }
+
+    AABBNode(AABB _box, int _depth, AABBNode* _pos = NULL, AABBNode* _neg = NULL)
+        : box(_box)
+        , depth(_depth)
+        , pos(_pos)
+        , neg(_neg)
+    {
+    }
+
+    ~AABBNode()
+    {
+        if (pos) delete pos;
+        if (neg) delete neg;
+    }
+
+    bool isLeaf() const
+    {
+        return !pos && !neg;
+    }
+
+    void collectObjectsForRayIntersection(const Ray& ray, vector<Object*>& result, int depth = 0) const
+    {
+        if (!box.intersects(ray))
+            return;
+
+        // From here on out, assume that the ray intersects my AABB.
+        if (isLeaf()) {
+            for (Object* object : objects)
+                result.push_back(object);
+        } else {
+            pos->collectObjectsForRayIntersection(ray, result, depth + 1);
+            neg->collectObjectsForRayIntersection(ray, result, depth + 1);
+        }
+    }
+
+    void nodeCount(int& numTreeNodes, int& numLeafNodes) const
+    {
+        if (isLeaf())
+            numLeafNodes++;
+        else {
+            numTreeNodes++;
+            pos->nodeCount(numTreeNodes, numLeafNodes);
+            neg->nodeCount(numTreeNodes, numLeafNodes);
+        }
+    }
+
+    string toString() const
+    {
+        ostringstream out;
+        if (isLeaf()) {
+            out << "AABBNode(objects=[ ";
+            for (Object* object : objects)
+                out << object->id << ", ";
+            out << "])";
+            return out.str();
+        }
+        out << "AABBNode(box=" << box.toString() << ",\n";
+        for (int _ = 0; _ < depth; _++)
+            out << "    ";
+        out << "    pos=" << pos->toString() << ",\n";
+        for (int _ = 0; _ < depth; _++)
+            out << "    ";
+        out << "    neg=" << neg->toString() << "\n";
+        for (int _ = 0; _ < depth; _++)
+            out << "    ";
+        out << ")";
+        return out.str();
+    }
+
+    vector<Object*> objects;
+    AABB box;
+    int depth;
+    AABBNode* pos;
+    AABBNode* neg;
+};
+
+void splitObjectsByMidpointAlongAxis(const vector<Object*>& objects, const Vector3f& midpoint, int axis, vector<Object*>& pos, vector<Object*>& neg)
+{
+    bool discriminator = objects.size() % 2 == 0;
+    for (Object* object : objects) {
+        if (object->midpoint(axis) < midpoint(axis))
+            neg.push_back(object);
+        else if (object->midpoint(axis) > midpoint(axis))
+            pos.push_back(object);
+        else {
+            if (discriminator)
+                pos.push_back(object);
+            else
+                neg.push_back(object);
+            discriminator = !discriminator;
+        }
+    }
+}
+
+AABBNode* makeAABBNode(const vector<Object*>& objects, int depth = 0)
+{
+    if (depth > MAX_AABB_DEPTH || objects.size() <= AABB_LEAF_SIZE)
+        return new AABBNode(objects, depth);
+
+    AABB rootBoundingBox = computeAABBFromObjects(objects);
+    Vector3f midpoint = rootBoundingBox.midpoint();
+    vector<Object*> pos, neg;
+    splitObjectsByMidpointAlongAxis(objects, midpoint, depth % 3, pos, neg);
+    return new AABBNode(rootBoundingBox, depth, makeAABBNode(pos, depth + 1), makeAABBNode(neg, depth + 1));
+}
+
+class SkyBox {
+public:
+    SkyBox()
+        : backgroundColor(Color(0, 0, 0))
+        , isSolidColorSkyBox(true)
+    {
+    }
+
+    SkyBox(Color _backgroundColor)
+        : backgroundColor(_backgroundColor)
+        , isSolidColorSkyBox(true)
+    {
+    }
+
+    SkyBox(string fileNamePrefix, float _xmin, float _xmax, float _ymin, float _ymax, float _zmin, float _zmax, int _width, int _height)
+        : xmin(_xmin)
+        , xmax(_xmax)
+        , ymin(_ymin)
+        , ymax(_ymax)
+        , zmin(_zmin)
+        , zmax(_zmax)
+        , sizeX(_xmax - _xmin)
+        , sizeY(_ymax - _ymin)
+        , sizeZ(_zmax - _zmin)
+        , width(_width)
+        , height(_height)
+        , backgroundColor(Color(0, 0, 0))
+        , isSolidColorSkyBox(false)
+    {
+        loadImageToVector(faces[0], (fileNamePrefix + "1.png").c_str(), width, height);
+        loadImageToVector(faces[1], (fileNamePrefix + "2.png").c_str(), width, height);
+        loadImageToVector(faces[2], (fileNamePrefix + "3.png").c_str(), width, height);
+        loadImageToVector(faces[3], (fileNamePrefix + "4.png").c_str(), width, height);
+        loadImageToVector(faces[4], (fileNamePrefix + "5.png").c_str(), width, height);
+        loadImageToVector(faces[5], (fileNamePrefix + "6.png").c_str(), width, height);
+    }
+
+    float faceRayIntersectionTime(int face, const Ray& ray) const
+    {
+        switch (face) {
+            case 1:
+            return (zmin - ray.start(2)) / ray.direction(2);
+            case 2:
+            return (xmax- ray.start(0)) / ray.direction(0);
+            case 3:
+            return (zmax - ray.start(2)) / ray.direction(2);
+            case 4:
+            return (xmin - ray.start(0)) / ray.direction(0);
+            case 5:
+            return (ymax - ray.start(1)) / ray.direction(1);
+            case 6:
+            return (ymin - ray.start(1)) / ray.direction(1);
+        }
+        return -1;
+    }
+
+    Color colorForCoordinateOnFace(int face, float u, float v) const
+    {
+        return colorFromImageVector(faces[face - 1], width, height, u, v);
+    }
+
+    Color colorFromRay(const Ray& ray) const
+    {
+        if (isSolidColorSkyBox)
+            return backgroundColor;
+
+        float intersectionTime = FLT_MAX;
+        int intersectionFace;
+        for (int face = 1; face <= 6; face++) {
+            float tFace = faceRayIntersectionTime(face, ray);
+            if (tFace > 0 && tFace < intersectionTime) {
+                intersectionTime = tFace;
+                intersectionFace = face;
+            }
+        }
+        if (intersectionTime == FLT_MAX)
+            return Color(1, 1, 1); // Should never happen.
+
+        Vector3f intersection = ray.positionAtTime(intersectionTime);
+        // Compute u and v, which are parameters on the interval [0, 1].
+        float u, v;
+        float intersectionX = intersection(0),
+            intersectionY = intersection(1),
+            intersectionZ = intersection(2);
+        switch (intersectionFace) {
+            case 1:
+            u = (intersectionX - xmin) / sizeX;
+            v = (ymax - intersectionY) / sizeY;
+            break;
+
+            case 2:
+            u = (intersectionZ - zmin) / sizeZ;
+            v = (ymax - intersectionY) / sizeY;
+            break;
+
+            case 3:
+            u = (xmax - intersectionX) / sizeX;
+            v = (ymax - intersectionY) / sizeY;
+            break;
+
+            case 4:
+            u = (zmax - intersectionZ) / sizeZ;
+            v = (ymax - intersectionY) / sizeY;
+            break;
+
+            case 5:
+            u = (intersectionX - xmin) / sizeX;
+            v = (zmax - intersectionZ) / sizeZ;
+            break;
+
+            case 6:
+            u = (intersectionX - xmin) / sizeX;
+            v = (intersectionZ - zmin) / sizeZ;
+            break;
+        }
+        clamp<float>(u, 0, 1);
+        clamp<float>(v, 0, 1);
+        return colorForCoordinateOnFace(intersectionFace, u, v);
+    }
+
+    float xmin;
+    float xmax;
+    float ymin;
+    float ymax;
+    float zmin;
+    float zmax;
+    float sizeX;
+    float sizeY;
+    float sizeZ;
+    int width;
+    int height;
+    vector<unsigned char> faces[6];
+
+    Color backgroundColor;
+    bool isSolidColorSkyBox;
 };
 
 #endif /* __UTIL_H__ */
