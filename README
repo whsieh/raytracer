@@ -1,7 +1,13 @@
 CS184 Assignment 2: Raytracer
 Wenson Hsieh
 Developed and tested on OSX.
-Compatibility tested with Unix on hive servers.
+Compatibility tested with Unix on the EECS m125c servers (e.g. m125c-11.eecs.berkeley.edu). I intended to use hive, but servers were down and/or cripplingly slow on the week of submission.
+
+vvvvv PLEASE READ THIS! vvvvv
+
+IMPORTANT NOTE - The submission size limit appears to be 10MB, but my original compressed .tar.gz submission was 19MB. As such, I put the two most space-consuming resources, objects/ and textures/, in my public_html/ directory. They should be publicly accessible. Just "cp /home/cc/cs184/fa14/class/cs184-eq/public_html/textures/ /home/cc/cs184/fa14/class/cs184-eq/public_html/objects/ ."
+
+^^^^^ PLEASE READ THIS! ^^^^^
 
 I. The project directory
     - util.h      Contains data structures/helper functions used in other files.
@@ -9,8 +15,9 @@ I. The project directory
     - trace.cpp   Contains functions to create and map view rays to colors. Also contains the main entry point to the program.
     - Makefile    Used to compile the code.
     - objects/    Contains some .obj files used to render scenes.
-    - showcase/   Contains the final input-nn, image-nn.png and notes-nn files.
+    - scenes/     Contains the final input-nn, image-nn.png and notes-nn files.
     - textures/   Contains the textures for 3 skyboxes: sky, space and desert.
+    - lib/        Contains a bunch of code I didn't write, namely eigen and lodePNG
 
 II. Features at a glance
     A. Basic functionality
@@ -38,15 +45,32 @@ III. Instructions
         4. "obj <objfile> [-f]" has been tweaked to include an optional "-f" argument that flips vertex order
         5. "bg <texture_suffix> <xmin> <xmax> <ymin> <ymax> <zmin> <zmax> <width> <height>" is used to specify the skybox
             - The <texture_suffix> is a bit tricky. There should be 6 faces corresponding to the sides of the skybox, with each face 1...6 with the ith face corresponding to the file "<texture_suffix>i.png". The faces are numbered as such:
-                    1 : FRONT
-                    2 : RIGHT
-                    3 : BACK
-                    4 : LEFT
-                    5 : UP
-                    6 : DOWN
+                    1 FRONT
+                    2 RIGHT
+                    3 BACK
+                    4 LEFT
+                    5 UP
+                    6 DOWN
                 Alternately, think of the skybox numbering as an "unrolled cube" texture:
                     |  5    |
                     |4 1 2 3|
                     |  6    |
             - The min/max x, y and z values specify the axis-aligned bounding box for the skybox. This bounding box should enclose all objects in the scene.
             - The <width> and <height> indicate the width and height of each face's image. All 6 images must have the same dimensions.
+
+IV. Sources
+
+    A. Skyboxes
+        - http://forum.blockland.us/index.php?topic=207695.0
+        - http://www.ehdwalls.com/plog-content/images/1280x800/space/space-art-wallpaper-space-6997700-1280-800.jpg
+        - http://quadropolis.us/node/413
+
+    B. .obj files
+        - From various links posted on piazza.
+        - http://people.sc.fsu.edu/~jburkardt/data/obj/obj.html
+        - https://piazza.com/class/hysvdosomfhx?cid=237 for the T-rex
+
+    C. Code
+        - Basic split and trim functions copied from stackoverflow posts (see util.h).
+        - http://stackoverflow.com/questions/216823/whats-the-best-way-to-trim-stdstring
+        - http://stackoverflow.com/questions/236129/how-to-split-a-string-in-c

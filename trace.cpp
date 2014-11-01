@@ -27,6 +27,7 @@ static int ANTI_ALIASING_SAMPLES = 0;
 Color computeDiffuseComponent(const Color& diffuseColor, Vector3f intersection, const Ray& normal, Light* light)
 {
     float dotTerm = 0;
+    float xFalloffScale = 1, yFalloffScale = 1, zFalloffScale = 1;
     if (light->type() == DIRECTIONAL) {
         DirectionalLight* directionalLight = (DirectionalLight*) light;
         dotTerm = normal.direction.normalized().dot(-directionalLight->direction().normalized());
@@ -34,14 +35,21 @@ Color computeDiffuseComponent(const Color& diffuseColor, Vector3f intersection, 
     } else if (light->type() == POINT) {
         PointLight* pointLight = (PointLight*) light;
         dotTerm = normal.direction.normalized().dot((pointLight->position() - intersection).normalized());
+        if (pointLight->falloff > 0) {
+            float rExp = pow((pointLight->position() - intersection).norm(), pointLight->falloff);
+            xFalloffScale = 1.0 / rExp;
+            yFalloffScale = 1.0 / rExp;
+            zFalloffScale = 1.0 / rExp;
+        }
     }
     // If dotTerm < 0, color clamping will naturally take care of it.
-    return (diffuseColor * light->color()) * dotTerm;
+    return (Color(xFalloffScale, yFalloffScale, zFalloffScale) * (diffuseColor * light->color())) * dotTerm;
 }
 
 Color computeSpecularComponent(const Color& specularColor, float specularCoefficient, Vector3f intersection, const Ray& reflection, Light* light)
 {
     float dotTerm = 0;
+    float xFalloffScale = 1, yFalloffScale = 1, zFalloffScale = 1;
     if (light->type() == DIRECTIONAL) {
         DirectionalLight* directionalLight = (DirectionalLight*) light;
         dotTerm = reflection.direction.normalized().dot(-directionalLight->direction().normalized());
@@ -49,11 +57,17 @@ Color computeSpecularComponent(const Color& specularColor, float specularCoeffic
     } else if (light->type() == POINT) {
         PointLight* pointLight = (PointLight*) light;
         dotTerm = reflection.direction.normalized().dot((pointLight->position() - intersection).normalized());
+        if (pointLight->falloff > 0) {
+            float rExp = pow((pointLight->position() - intersection).norm(), pointLight->falloff);
+            xFalloffScale = 1.0 / rExp;
+            yFalloffScale = 1.0 / rExp;
+            zFalloffScale = 1.0 / rExp;
+        }
     }
     if (dotTerm < 0) // If this isn't here, taking dotTerm to the specularCoefficient might result in positive number.
         return Color(0, 0, 0);
     // If dotTerm < 0, color clamping will naturally take care of it.
-    return (specularColor * light->color()) * pow(dotTerm, specularCoefficient);
+    return (Color(xFalloffScale, yFalloffScale, zFalloffScale) * (specularColor * light->color())) * pow(dotTerm, specularCoefficient);
 }
 
 void setImagePixelFromColor(vector<unsigned char>& image, unsigned int i, unsigned int j, unsigned int width, unsigned int height, Color color)
@@ -73,8 +87,8 @@ Color colorFromRay(const Ray& ray, const vector<Light*>& lights, const vector<Ob
     Object* intersectionObject;
     vector<Object*> potentialIntersectingObjects;
     aabb->collectObjectsForRayIntersection(ray, potentialIntersectingObjects);
-    // cout << "Narrowed search to " << potentialIntersectingObjects.size() << " objects." << endl;
-    for (Object* object : potentialIntersectingObjects) {
+    for (int _ = 0; _ < potentialIntersectingObjects.size(); _++) {
+        Object* object = potentialIntersectingObjects[_];
         if (object->intersects(ray, currentIntersection, currentNormal, currentBounce)) {
             float currentTIntersection = ray.timeAtPosition(currentIntersection);
             if (currentTIntersection < closestTIntersection) {
@@ -93,7 +107,8 @@ Color colorFromRay(const Ray& ray, const vector<Light*>& lights, const vector<Ob
 
     Color pixelColor;
     Ray shadowRay;
-    for (Light* light : lights) {
+    for (int _ = 0; _ < lights.size(); _++) {
+        Light* light = lights[_];
         pixelColor = pixelColor + (intersectionObject->material.ambient * light->color());
         if (light->type() == AMBIENT)
             continue;
@@ -114,7 +129,8 @@ Color colorFromRay(const Ray& ray, const vector<Light*>& lights, const vector<Ob
         bool isOccluded = false;
         vector<Object*> potentialShadowRayIntersectingObjects;
         aabb->collectObjectsForRayIntersection(shadowRay, potentialShadowRayIntersectingObjects);
-        for (Object* object : potentialShadowRayIntersectingObjects) {
+        for (int _ = 0; _ < potentialShadowRayIntersectingObjects.size(); _++) {
+            Object* object = potentialShadowRayIntersectingObjects[_];
             if (object->intersects(shadowRay, maxTime)) {
                 isOccluded = true;
                 break;
@@ -181,9 +197,13 @@ int main(int argc, char* argv[])
 
     // Tear down and deallocate data structures.
     delete aabb;
-    for (Light* light : lights)
-        free(light);
+    // for (int _ = 0; _ < lights.size(); _++) {
+    //     Light* light = lights[_];
+    //     delete light;
+    // }
 
-    for (Object* object : objects)
-        free(object);
+    // for (int _ = 0; _ < objects.size(); _++) {
+    //     Object* object = objects[_];
+    //     delete object;
+    // }
 }

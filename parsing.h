@@ -266,7 +266,14 @@ bool parseSceneFile(int argc, char* argv[], Camera& camera, vector<Light*>& ligh
                 printf("Warning: could not parse point light on line %d.\n", lineNo);
                 continue;
             }
-            lights.push_back(new PointLight(Vector3f(x, y, z), Color(r, g, b)));
+            int falloff = 0;
+            if (tokens.size() >= 7) {
+                if (!parseInt(tokens[6], falloff)) {
+                    printf("Warning: could not parse falloff for point light on line %d.\n", lineNo);
+                    continue;
+                }
+            }
+            lights.push_back(new PointLight(Vector3f(x, y, z), Color(r, g, b), falloff));
 
         } else if (identifier == "ltd") {
             if (tokens.size() < 6) {

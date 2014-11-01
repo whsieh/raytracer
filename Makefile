@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -g -Wall -O2 -std=c++11
+CFLAGS = -g -Wall -O2 -std=c++0x
 TARGET = trace
 
 all: $(TARGET)
