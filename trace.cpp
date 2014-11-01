@@ -190,8 +190,8 @@ int main(int argc, char* argv[])
     }
 
     cout << "Rendering finished. Time: " << setprecision(3) << (time(NULL) - startTime) << " seconds." << endl;
-
     string label = sceneFileNameFromArgs(argc, argv, false);
+    cout << "Writing image to " << label << ".png" << endl;
     if (lodepng::encode(string(label + ".png").c_str(), image, width, height))
         cout << "Error: Failed to save image." << endl;
 
