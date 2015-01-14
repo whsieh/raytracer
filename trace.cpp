@@ -197,13 +197,13 @@ int main(int argc, char* argv[])
 
     // Tear down and deallocate data structures.
     delete aabb;
-    // for (int _ = 0; _ < lights.size(); _++) {
-    //     Light* light = lights[_];
-    //     delete light;
-    // }
+    for (int _ = 0; _ < lights.size(); _++) {
+        Light* light = lights[_];
+        delete light;
+    }
 
-    // for (int _ = 0; _ < objects.size(); _++) {
-    //     Object* object = objects[_];
-    //     delete object;
-    // }
+    for (int _ = 0; _ < objects.size(); _++) {
+        Object* object = objects[_];
+        delete object;
+    }
 }

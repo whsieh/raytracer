@@ -197,10 +197,10 @@ public:
         clamp<float>(blue, 0, 1);
     }
 
-    // string toString() const
-    // {
-    //     return "<" + to_string(red) + ", " + to_string(green) + ", " + to_string(blue) + ">";
-    // }
+    string toString() const
+    {
+        return "<" + to_string(red) + ", " + to_string(green) + ", " + to_string(blue) + ">";
+    }
 
     float red;
     float green;
@@ -275,17 +275,17 @@ public:
         return start + (t * direction);
     }
 
-    // string toString() const
-    // {
-    //     ostringstream out;
-    //     out << "Ray(start=[" << setprecision(3) << start(0) << ", "
-    //         << setprecision(3) << start(1) << ", "
-    //         << setprecision(3) << start(2) << "], direction=["
-    //         << setprecision(3) << direction(0) << ", "
-    //         << setprecision(3) << direction(1) << ", "
-    //         << setprecision(3) << direction(2) << "])";
-    //     return out.str();
-    // }
+    string toString() const
+    {
+        ostringstream out;
+        out << "Ray(start=[" << setprecision(3) << start(0) << ", "
+            << setprecision(3) << start(1) << ", "
+            << setprecision(3) << start(2) << "], direction=["
+            << setprecision(3) << direction(0) << ", "
+            << setprecision(3) << direction(1) << ", "
+            << setprecision(3) << direction(2) << "])";
+        return out.str();
+    }
 
     Vector3f start;
     Vector3f direction;
@@ -313,14 +313,14 @@ public:
     {
     }
 
-    // string toString() const
-    // {
-    //     ostringstream out;
-    //     out << "AABB(x=[" << setprecision(3) << xmin << ", " << setprecision(3) << xmax << "], "
-    //         << "y=[" << setprecision(3) << ymin << ", " << setprecision(3) << ymax << "], "
-    //         << "z=[" << setprecision(3) << zmin << ", " << setprecision(3) << zmax << "])";
-    //     return out.str();
-    // }
+    string toString() const
+    {
+        ostringstream out;
+        out << "AABB(x=[" << setprecision(3) << xmin << ", " << setprecision(3) << xmax << "], "
+            << "y=[" << setprecision(3) << ymin << ", " << setprecision(3) << ymax << "], "
+            << "z=[" << setprecision(3) << zmin << ", " << setprecision(3) << zmax << "])";
+        return out.str();
+    }
 
     Vector3f midpoint() const
     {
@@ -402,26 +402,26 @@ public:
         return u * (v * lr + (1 - v) * ur) + (1 - u) * (v * ll + (1 - v) * ul);
     }
 
-    // string toString() const
-    // {
-    //     ostringstream out;
-    //     out << "Camera(eye=[" << setprecision(3) << eye(0) << ", "
-    //         << setprecision(3) << eye(1) << ", "
-    //         << setprecision(3) << eye(2) << "], ll=["
-    //         << setprecision(3) << ll(0) << ", "
-    //         << setprecision(3) << ll(1) << ", "
-    //         << setprecision(3) << ll(2) << "], lr=["
-    //         << setprecision(3) << lr(0) << ", "
-    //         << setprecision(3) << lr(1) << ", "
-    //         << setprecision(3) << lr(2) << "], ul=["
-    //         << setprecision(3) << ul(0) << ", "
-    //         << setprecision(3) << ul(1) << ", "
-    //         << setprecision(3) << ul(2) << "], ur=["
-    //         << setprecision(3) << ur(0) << ", "
-    //         << setprecision(3) << ur(1) << ", "
-    //         << setprecision(3) << ur(2) << "])";
-    //     return out.str();
-    // }
+    string toString() const
+    {
+        ostringstream out;
+        out << "Camera(eye=[" << setprecision(3) << eye(0) << ", "
+            << setprecision(3) << eye(1) << ", "
+            << setprecision(3) << eye(2) << "], ll=["
+            << setprecision(3) << ll(0) << ", "
+            << setprecision(3) << ll(1) << ", "
+            << setprecision(3) << ll(2) << "], lr=["
+            << setprecision(3) << lr(0) << ", "
+            << setprecision(3) << lr(1) << ", "
+            << setprecision(3) << lr(2) << "], ul=["
+            << setprecision(3) << ul(0) << ", "
+            << setprecision(3) << ul(1) << ", "
+            << setprecision(3) << ul(2) << "], ur=["
+            << setprecision(3) << ur(0) << ", "
+            << setprecision(3) << ur(1) << ", "
+            << setprecision(3) << ur(2) << "])";
+        return out.str();
+    }
 
     Vector3f eye;
     Vector3f ll;
@@ -438,6 +438,8 @@ public:
         , m_color(color)
     {
     }
+
+    virtual ~Light() { }
 
     virtual const LightSourceType type() const
     {
@@ -467,6 +469,8 @@ public:
         m_vector = m_vector / sqrt(m_vector.dot(m_vector));
     }
 
+    virtual ~DirectionalLight() { }
+
     const Vector3f direction() const
     {
         return m_vector;
@@ -482,6 +486,8 @@ public:
     {
         m_type = POINT;
     }
+
+    virtual ~PointLight() { }
 
     const Vector3f position() const
     {
@@ -499,6 +505,8 @@ public:
     {
         m_type = AMBIENT;
     }
+
+    virtual ~AmbientLight() { }
 };
 
 class Material {
@@ -536,6 +544,8 @@ public:
         resetTransformToIdentity(transform);
     }
 
+    virtual ~Object() { }
+
     Ray rayInObjectSpace(const Ray& viewRay) const
     {
         Transform<float, 3, Affine> inverseTransform = transform.inverse();
@@ -544,7 +554,7 @@ public:
         return Ray(transformedStart, transformedOffsetPosition - transformedStart);
     }
 
-    // virtual string toString() const = 0;
+    virtual string toString() const = 0;
     virtual bool intersects(const Ray&, float) const = 0;
     virtual bool intersects(const Ray&, Vector3f&, Ray&, Ray&) const = 0;
     virtual void computeWorldAABB() = 0;
@@ -576,6 +586,8 @@ public:
         , radius(_radius)
     {
     }
+
+    virtual ~Sphere() { }
 
     void computeWorldAABB()
     {
@@ -683,13 +695,13 @@ public:
         return true;
     }
 
-    // string toString() const
-    // {
-    //     ostringstream out;
-    //     out << "Sphere(center=[" << setprecision(3) << center(0) << ", " << setprecision(3) << center(1) << ", "
-    //         << setprecision(3) << center(2) << "], radius=" << setprecision(3) << radius << ")";
-    //     return out.str();
-    // }
+    string toString() const
+    {
+        ostringstream out;
+        out << "Sphere(center=[" << setprecision(3) << center(0) << ", " << setprecision(3) << center(1) << ", "
+            << setprecision(3) << center(2) << "], radius=" << setprecision(3) << radius << ")";
+        return out.str();
+    }
 
     Vector3f center;
     float radius;
@@ -731,6 +743,8 @@ public:
         cachedIntersectionMatrix(1, 1) = c(1) - a(1);
         cachedIntersectionMatrix(2, 1) = c(2) - a(2);
     }
+
+    virtual ~Triangle() { }
 
     void computeWorldAABB()
     {
@@ -820,14 +834,14 @@ public:
         return true;
     }
 
-    // string toString() const
-    // {
-    //     ostringstream out;
-    //     out << "Triangle(a=[" << setprecision(3) << a(0) << ", " << setprecision(3) << a(1) << ", " << setprecision(3) << a(2) << "], "
-    //         << "b=[" << setprecision(3) << b(0) << ", " << setprecision(3) << b(1) << ", " << setprecision(3) << b(2) << "], "
-    //         << "c=[" << setprecision(3) << c(0) << ", " << setprecision(3) << c(1) << ", " << setprecision(3) << c(2) << "])";
-    //     return out.str();
-    // }
+    string toString() const
+    {
+        ostringstream out;
+        out << "Triangle(a=[" << setprecision(3) << a(0) << ", " << setprecision(3) << a(1) << ", " << setprecision(3) << a(2) << "], "
+            << "b=[" << setprecision(3) << b(0) << ", " << setprecision(3) << b(1) << ", " << setprecision(3) << b(2) << "], "
+            << "c=[" << setprecision(3) << c(0) << ", " << setprecision(3) << c(1) << ", " << setprecision(3) << c(2) << "])";
+        return out.str();
+    }
 
     Vector3f a;
     Vector3f b;
@@ -918,28 +932,28 @@ public:
         }
     }
 
-    // string toString() const
-    // {
-    //     ostringstream out;
-    //     if (isLeaf()) {
-    //         out << "AABBNode(objects=[ ";
-    //         for (Object* object : objects)
-    //             out << object->id << ", ";
-    //         out << "])";
-    //         return out.str();
-    //     }
-    //     out << "AABBNode(box=" << box.toString() << ",\n";
-    //     for (int _ = 0; _ < depth; _++)
-    //         out << "    ";
-    //     out << "    pos=" << pos->toString() << ",\n";
-    //     for (int _ = 0; _ < depth; _++)
-    //         out << "    ";
-    //     out << "    neg=" << neg->toString() << "\n";
-    //     for (int _ = 0; _ < depth; _++)
-    //         out << "    ";
-    //     out << ")";
-    //     return out.str();
-    // }
+    string toString() const
+    {
+        ostringstream out;
+        if (isLeaf()) {
+            out << "AABBNode(objects=[ ";
+            for (Object* object : objects)
+                out << object->id << ", ";
+            out << "])";
+            return out.str();
+        }
+        out << "AABBNode(box=" << box.toString() << ",\n";
+        for (int _ = 0; _ < depth; _++)
+            out << "    ";
+        out << "    pos=" << pos->toString() << ",\n";
+        for (int _ = 0; _ < depth; _++)
+            out << "    ";
+        out << "    neg=" << neg->toString() << "\n";
+        for (int _ = 0; _ < depth; _++)
+            out << "    ";
+        out << ")";
+        return out.str();
+    }
 
     vector<Object*> objects;
     AABB box;
