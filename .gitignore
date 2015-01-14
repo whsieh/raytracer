@@ -6,3 +6,4 @@ as2
 eigen/*
 lodepng.*
 *.dSYM/
+*.sublime-*
